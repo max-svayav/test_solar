@@ -27,8 +27,18 @@ void loop() {
   }
 }
 
+bool should_shine() {
+  return check_sun() || check_schedule();
+}
+
 bool check_sun() {
   return false;
+}
+
+bool check_schedule() {
+  const time_t t = now(); 
+  const int h = hour(t);          
+  return (h >= 16 && h < 23);
 }
 
 bool try_calibration() {
@@ -53,8 +63,8 @@ bool try_calibration() {
           Serial.println(F("Ignoring format"));
         }
       }
-
     }
+
   }
   
   if (timeStatus() != timeNotSet) {
