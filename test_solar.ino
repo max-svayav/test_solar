@@ -14,14 +14,17 @@ const unsigned long DEFAULT_TIME = 1357041600; // Jan 1 2013
 const int SYNC_RETRIES = 3;
 const int SYNC_ATTEMPT_WAIT_MS = 30000;
 
+const time_t CORRECTION_S_PER_DAY = (time_t) (30UL * SECS_PER_MIN); 
+
 bool calibrated;
+unsigned long backThen;
 
 void setup() {
   calibrated = try_calibration();
 }
 
 void loop() {
-  bool on = !calibrated || check_sun();
+  bool on = !calibrated || should_shine();
   for ( int i = 2 ; i <= 13 ; i += 1 ) {
     analogWrite(i, on ? 255 : 0);
   }
@@ -36,9 +39,11 @@ bool check_sun() {
 }
 
 bool check_schedule() {
-  const time_t t = now(); 
-  const int h = hour(t);          
-  return (h >= 16 && h < 23);
+  const time_t n = now();
+  const time_t t = n + (elapsedDays(n) - backThen) * CORRECTION_S_PER_DAY;
+  const int h = hour(t);
+  const int m = minute(t);          
+  return (h >= 5 && h < 10);
 }
 
 bool try_calibration() {
@@ -47,6 +52,7 @@ bool try_calibration() {
   Serial.println("Waiting for sync message");
 
   for ( int i = 0 ; i < SYNC_RETRIES && timeStatus() == timeNotSet ; i += 1 ) {
+    Serial.println("");
     Serial.println(SYNC_RETRIES - i);
     Serial.write(TIME_REQUEST);
 
@@ -69,6 +75,8 @@ bool try_calibration() {
   
   if (timeStatus() != timeNotSet) {
     digitalClockDisplay();
+    Serial.println("Time synced. On by schedule mode.");
+    backThen = elapsedDays(now());
     return true;
   }
 
