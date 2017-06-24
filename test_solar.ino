@@ -14,7 +14,7 @@ const unsigned long DEFAULT_TIME = 1357041600; // Jan 1 2013
 const int SYNC_RETRIES = 3;
 const int SYNC_ATTEMPT_WAIT_MS = 30000;
 
-const time_t CORRECTION_S_PER_DAY = (time_t) (30UL * SECS_PER_MIN); 
+const time_t CORRECTION_S_PER_DAY = (time_t) (10UL * SECS_PER_MIN); 
 
 bool calibrated;
 unsigned long backThen;
