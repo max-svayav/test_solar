@@ -12,7 +12,7 @@
 
 #define TIME_REQUEST  7     // ASCII bell character requests a time sync message 
 
-#define EEPROM_SIGNATURE ((unsigned short) 0x2229)
+#define EEPROM_SIGNATURE ((unsigned short) 0x2629)
 
 const unsigned long DEFAULT_TIME = 1357041600; // Jan 1 2013
 
@@ -25,15 +25,18 @@ VL6180x sensor(0x29);
 bool calibrated;
 time_t backThen;
 time_t lastWrite;
-int n;
+int n_acc;
 float acc;
+
+size_t ee_length;
 
 void setup() {
   calibrated = try_calibration();
   init_sensor();
+  ee_length = EEPROM.length();
   eeprom_print();
   lastWrite = 0;
-  n = 0;
+  n_acc = 0;
   acc = 0;
 }
 
@@ -45,14 +48,15 @@ void loop() {
 
   if ( calibrated ) {
     acc += get_ambient();
-    n += 1;
-    time_t n = now();
+    n_acc += 1;
+    const time_t n = now();
     if(lastWrite == 0 || n - lastWrite >= 15) {
       lastWrite = n;
-      const float ambient = acc / n;
+      const float ambient = acc / n_acc;
       acc = 0;
-      n = 0;
+      n_acc = 0;
       eeprom_write(ambient);
+      Serial.print("'");
       Serial.println(ambient);
     }    
   }
@@ -163,56 +167,59 @@ short init_eeprom() {
   short index; 
   EEPROM.get(0, check);
   EEPROM.get(sizeof(check), index);
-  if(check != EEPROM_SIGNATURE || index <= sizeof(check) + sizeof(index) || index >= EEPROM.length()) {
+  Serial.print(check);
+  Serial.print(":");
+  Serial.println(index);
+  size_t i = index;
+  if(check != EEPROM_SIGNATURE || i < sizeof(check) + sizeof(index) || i == ee_length || i + sizeof(float) > ee_length) {
     index = sizeof(check) + sizeof(index);    
     EEPROM.put(sizeof(check), index);
-    for(int i = index ; i < EEPROM.length() ; i += 1) {
-      EEPROM.write(i, -1);
+    EEPROM.get(sizeof(check), index);
+    Serial.print("EEPROM index reset=");
+    Serial.println(index);
+    for(int j = index ; j < ee_length ; j += 1) {
+      EEPROM.update(j, -1);
     }
-  }  
+    EEPROM.put(0, EEPROM_SIGNATURE);
+  }
+  Serial.print("EEPROM index=");
+  Serial.println(index);  
   return index;
 }
 
 void eeprom_write(const float f) {
   short index = init_eeprom();
-  EEPROM.put(index, f);
-  index += sizeof(f);
-  if(index >= EEPROM.length()) {
-    index = sizeof(EEPROM_SIGNATURE) + sizeof(index);
+  size_t i = index;
+  EEPROM.put(i, f);
+  float g;
+  EEPROM.get(i, g);
+  if (f != g) {
+    EEPROM.put(i, f);
+    Serial.println("err");  
+  }
+  i += sizeof(f);
+  if(i == ee_length || i + sizeof(float) > ee_length) {
+    i = sizeof(EEPROM_SIGNATURE) + sizeof(index);
   } 
-  EEPROM.put(0, EEPROM_SIGNATURE);
+  index = i;
   EEPROM.put(sizeof(EEPROM_SIGNATURE), index);
+  Serial.print("EEPROM index written=");
+  Serial.println(index);  
 }
-
-struct batch {
-  float a, b, c, d;
-};
 
 void eeprom_print() {
   const short index = init_eeprom();
-  short i = index;
+  size_t i = index;
   Serial.print("Ambient=");
   do {
     float f;
-    batch b;
-    if(i + sizeof(b) <= EEPROM.length()) {
-      EEPROM.get(i, b);
-      i += sizeof(b);
-      Serial.print(b.a);
-      Serial.print(", ");
-      Serial.print(b.b);
-      Serial.print(", ");
-      Serial.print(b.c);
-      Serial.print(", ");
-      Serial.print(b.d);
-    } else {
-      EEPROM.get(i, f);
-      i += sizeof(f);
-      Serial.print(f);
-    }
-
-    if(i >= EEPROM.length()) {
-      i = sizeof(EEPROM_SIGNATURE) + sizeof(i);
+    EEPROM.get(i, f);
+    Serial.print(i);
+    Serial.print(":");
+    i += sizeof(f);
+    Serial.print(f);
+    if (i == ee_length || i + sizeof(f) > ee_length) {
+      i = sizeof(EEPROM_SIGNATURE) + sizeof(index);
     }
     if (i != index) {
       Serial.print(", ");
