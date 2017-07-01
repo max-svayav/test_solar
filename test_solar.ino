@@ -23,6 +23,7 @@ const time_t CORRECTION_S_PER_DAY = (time_t) (10UL * SECS_PER_MIN);
 VL6180x sensor(0x29);
 
 bool calibrated;
+bool sensor;
 time_t backThen;
 time_t lastWrite;
 int n_acc;
@@ -32,7 +33,7 @@ size_t ee_length;
 
 void setup() {
   calibrated = try_calibration();
-  init_sensor();
+  sensor = init_sensor();
   ee_length = EEPROM.length();
   eeprom_print();
   lastWrite = 0;
@@ -46,7 +47,7 @@ void loop() {
     analogWrite(i, on ? 255 : 0);
   }
 
-  if ( calibrated ) {
+  if ( calibrated && sensor ) {
     acc += get_ambient();
     n_acc += 1;
     const time_t n = now();
@@ -56,8 +57,6 @@ void loop() {
       acc = 0;
       n_acc = 0;
       eeprom_write(ambient);
-      Serial.print("'");
-      Serial.println(ambient);
     }    
   }
 }
@@ -146,19 +145,14 @@ void printDigits(int digits) {
   Serial.print(digits);
 }
 
-void init_sensor() {
-  pinMode(LED_BUILTIN, OUTPUT);
-  digitalWrite(LED_BUILTIN, LOW);
-  
+bool init_sensor() {
   if(sensor.VL6180xInit()) {
-    for(int i = 0 ; i < 3 ; i += 1) {
-      digitalWrite(LED_BUILTIN, HIGH);
-      delay(500);
-      digitalWrite(LED_BUILTIN, LOW);
-    }
+    Serial.println("VL6180x init failure");
+    return false;
   } else {
     sensor.VL6180xDefautSettings();
     delay(1000);
+    return true;
   }
 }
 
@@ -167,23 +161,16 @@ short init_eeprom() {
   short index; 
   EEPROM.get(0, check);
   EEPROM.get(sizeof(check), index);
-  Serial.print(check);
-  Serial.print(":");
-  Serial.println(index);
   size_t i = index;
   if(check != EEPROM_SIGNATURE || i < sizeof(check) + sizeof(index) || i == ee_length || i + sizeof(float) > ee_length) {
     index = sizeof(check) + sizeof(index);    
     EEPROM.put(sizeof(check), index);
     EEPROM.get(sizeof(check), index);
-    Serial.print("EEPROM index reset=");
-    Serial.println(index);
     for(int j = index ; j < ee_length ; j += 1) {
       EEPROM.update(j, -1);
     }
     EEPROM.put(0, EEPROM_SIGNATURE);
   }
-  Serial.print("EEPROM index=");
-  Serial.println(index);  
   return index;
 }
 
@@ -195,7 +182,7 @@ void eeprom_write(const float f) {
   EEPROM.get(i, g);
   if (f != g) {
     EEPROM.put(i, f);
-    Serial.println("err");  
+    EEPROM.put(i, (long) -1);
   }
   i += sizeof(f);
   if(i == ee_length || i + sizeof(float) > ee_length) {
@@ -203,8 +190,6 @@ void eeprom_write(const float f) {
   } 
   index = i;
   EEPROM.put(sizeof(EEPROM_SIGNATURE), index);
-  Serial.print("EEPROM index written=");
-  Serial.println(index);  
 }
 
 void eeprom_print() {
@@ -214,8 +199,6 @@ void eeprom_print() {
   do {
     float f;
     EEPROM.get(i, f);
-    Serial.print(i);
-    Serial.print(":");
     i += sizeof(f);
     Serial.print(f);
     if (i == ee_length || i + sizeof(f) > ee_length) {
@@ -228,166 +211,3 @@ void eeprom_print() {
   Serial.println();
 }
 
-/*
-
-interface TimerAction {
-public:
-  void fire(time_t t) = 0;
-};
-
-class IntervalTimer : public TimerAction {
-private:
-  long delta = 0;
-  bool set = false;
-  TimerAction & action;
-  time_t then;
-public:
-  TimerAction & everyMinutes(long n, TimerAction &t) {
-    return everySeconds(SECS_PER_MIN * n, t);
-  }
-  
-  TimerAction & everySeconds(long n, TimerAction &t) {
-    IntervalTimer::delta = n ;
-    IntervalTimer::action = t;
-    set = true;
-    return this;
-  }
-  
-  TimerAction & everyHours(long n, TimerAction &t) {
-    return everySeconds(SECS_PER_HOUR * n, t);
-  }
-
-  void fire(time_t n) {
-    if(then == 0 || n - then >= delta) {
-      then = n - n % delta;
-      action.fire(n);  
-    }
-  }
-  
-};
-
-class Alarm : public TimerAction {
-private:
-  int hour;
-  int minute;
-  bool set = false;
-  TimerAction & action;
-public:
-  TimerAction & set(int hour, int minute, TimerAction & action) {
-    Alarm::hour = hour;
-    Alarm::minute = minute;
-    Alarm::action = action;
-    set = true;
-    return this;
-  }
-
-  void set() {
-    this.set = true;
-  }
-
-  void fire(time_t n) {
-    if(!set) {
-      return;
-    }
-    if(::hour(n) >= hour && ::minute(n) >= minute) {
-      action.fire(n);
-      set = false;
-    }
-  }
-
-};
-
-class Clock {
-private:
-  
-  class SecondHand : public TimerAction {
-  protected:
-    Clock &clk;
-  public:    
-    void fire(time_t n) {
-      clk.tack(n);
-    }
-  } secondHand;
-
-  const correctionPerDay = CORRECTION_S_PER_DAY;
- 
-  time_t backThen;
-  TimerAction & actions[];
-  int num;
-  TimerAction seconds;
-
-private:
-  time_t now() {
-    return ::now();
-  }
-
-  time_t time() {
-    const time_t n = Clock::now();
-    const time_t t = n + (elapsedDays(n) - elapsedDays(Clock::backThen)) * correctionPerDay;
-    return t;
-  }
-
-protected:
-  void tack(time_t n) {
-    for(int i = 0; i < num; i += 1) {
-      actions[i].fire(n); 
-    }
-  }
-
-public:
-  Clock(TimerAction actions[], int l) {
-    Clock::actions = actions;
-    num = l;
-    secondHand.clk = *this;   
-  }  
-  
-  void tick() {
-    seconds.fire(Clock::time());
-  }
-
-  void start() {
-    backThen = Clock::now();
-    seconds.everySeconds(1, secondHand);
-  }
-  
-};
-
-class Aggregate {
-
-private:
-  float acc;
-  int n;
-  
-public:
-  Aggregate():acc{0},n{0} {}; 
-
-  float mean() {
-    const float f = acc / n;
-    acc = 0;
-    n = 0;
-    return f;
-  }
-
-  int accumulate(float f) {
-    acc += f;
-    n += 1;
-    return n;
-  }
-
-  void reset() {
-    n = 0;
-    acc = 0;
-  }
-
-};
-
-void testClock() {
-  Alarm
-  TimerAction & timers[] = [
-    IntervalTimer().everySecond(1, ),    
-    IntervalTimer().everySecond(1, ),    
-    IntervalTimer().everySecond(1, ),    
-  ];
-}
-
-*/
