@@ -12,7 +12,7 @@
 
 #define TIME_REQUEST  7     // ASCII bell character requests a time sync message 
 
-#define EEPROM_SIGNATURE ((unsigned short) 0x2629)
+#define EEPROM_SIGNATURE ((unsigned short) 0x2729)
 
 const unsigned long DEFAULT_TIME = 1357041600; // Jan 1 2013
 
@@ -51,7 +51,7 @@ void loop() {
     acc += get_ambient();
     n_acc += 1;
     const time_t n = now();
-    if(lastWrite == 0 || n - lastWrite >= 15) {
+    if(lastWrite == 0 || n - lastWrite >= SECS_PER_HOUR) {
       lastWrite = n;
       const float ambient = acc / n_acc;
       acc = 0;
@@ -59,6 +59,8 @@ void loop() {
       eeprom_write(ambient);
     }    
   }
+
+  delay(100);
 }
 
 bool should_shine() {
