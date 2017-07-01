@@ -23,7 +23,7 @@ const time_t CORRECTION_S_PER_DAY = (time_t) (10UL * SECS_PER_MIN);
 VL6180x sensor(0x29);
 
 bool calibrated;
-bool sensor;
+bool sensor_init;
 time_t backThen;
 time_t lastWrite;
 int n_acc;
@@ -33,7 +33,7 @@ size_t ee_length;
 
 void setup() {
   calibrated = try_calibration();
-  sensor = init_sensor();
+  sensor_init = init_sensor();
   ee_length = EEPROM.length();
   eeprom_print();
   lastWrite = 0;
@@ -47,7 +47,7 @@ void loop() {
     analogWrite(i, on ? 255 : 0);
   }
 
-  if ( calibrated && sensor ) {
+  if ( calibrated && sensor_init ) {
     acc += get_ambient();
     n_acc += 1;
     const time_t n = now();
