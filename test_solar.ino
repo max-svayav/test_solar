@@ -12,7 +12,7 @@
 
 #define TIME_REQUEST  7     // ASCII bell character requests a time sync message 
 
-#define EEPROM_SIGNATURE ((unsigned short) 0x2729)
+#define EEPROM_SIGNATURE ((unsigned short) 0x272c)
 
 const unsigned long DEFAULT_TIME = 1357041600; // Jan 1 2013
 
@@ -22,6 +22,7 @@ const int SYNC_ATTEMPT_WAIT_MS = 30000;
 const time_t CORRECTION_S_PER_DAY = (time_t) (10UL * SECS_PER_MIN); 
 VL6180x sensor(0x29);
 
+bool eeprom_diag = true;
 bool calibrated;
 bool sensor_init;
 time_t backThen;
@@ -76,7 +77,7 @@ bool check_schedule() {
   const time_t t = n + (elapsedDays(n) - elapsedDays(backThen)) * CORRECTION_S_PER_DAY;
   const int h = hour(t);
   const int m = minute(t);          
-  return (h >= 5 && h < 10);
+  return (h >= 6 && h < 10) || (h >= 17 && h < 20);
 }
 
 bool try_calibration() {
@@ -172,6 +173,15 @@ short init_eeprom() {
       EEPROM.update(j, -1);
     }
     EEPROM.put(0, EEPROM_SIGNATURE);
+  }
+  if(eeprom_diag) {
+    Serial.print("Sig=");
+    EEPROM.get(0, check);
+    Serial.print(check);
+    Serial.print(";Offs=");
+    EEPROM.get(sizeof(check), check);
+    Serial.println(check);
+    eeprom_diag = false;
   }
   return index;
 }
