@@ -40,6 +40,9 @@ void setup() {
   lastWrite = 0;
   n_acc = 0;
   acc = 0;
+  for ( int i = 2 ; i <= 13 ; i += 1 ) {
+    pinMode(i, OUTPUT);
+  }
 }
 
 void loop() {
