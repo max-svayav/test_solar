@@ -58,6 +58,9 @@ void loop() {
       acc = 0;
       n_acc = 0;
       eeprom_write(ambient);
+
+      // it just so happens, we do this every hour
+      debugRtcEMulation();
     }    
   }
 
@@ -77,8 +80,18 @@ bool check_schedule() {
   const time_t t = n + (elapsedDays(n) - elapsedDays(backThen)) * CORRECTION_S_PER_DAY;
   const int h = hour(t);
   const int m = minute(t);          
-  return (h >= 6 && h < 10) || (h >= 17 && h < 20);
+  return (h >= 6 && h < 9) || (h == 15 && m >= 30) || (h > 15 && h < 20);
 }
+
+void debugRtcEMulation() {
+  const time_t n = now();
+  const time_t t = n + (elapsedDays(n) - elapsedDays(backThen)) * CORRECTION_S_PER_DAY;
+  Serial.println("now; backThen; adjusted");
+  timeDisplay(n);
+  timeDisplay(backThen);
+  timeDisplay(t);
+}
+
 
 bool try_calibration() {
   Serial.begin(9600);
@@ -123,20 +136,24 @@ float get_ambient() {
   return ambient;
 }
 
-void digitalClockDisplay() {
-  // digital clock display of the time
-  Serial.print(hour());
-  printDigits(minute());
-  printDigits(second());
+void timeDisplay(time_t t) {
+  Serial.print(hour(t));
+  printDigits(minute(t));
+  printDigits(second(t));
   Serial.print(" ");
-  Serial.print(dayStr(weekday()));
+  Serial.print(dayStr(weekday(t)));
   Serial.print(" ");
   Serial.print(day());
   Serial.print(" ");
-  Serial.print(monthStr(month()));
+  Serial.print(monthStr(month(t)));
   Serial.print(" ");
-  Serial.print(year());
+  Serial.print(year(t));
   Serial.println();
+}
+
+void digitalClockDisplay() {
+  // digital clock display of the time
+  timeDisplay(now());
 }
 
 void printDigits(int digits) {
